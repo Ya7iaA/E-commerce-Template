@@ -1,4 +1,4 @@
-# LUBB GO — E-Commerce Store
+# Tacti8ai — E-Commerce Store
 
 A modern, fully-featured e-commerce storefront built with React, TypeScript, and Tailwind CSS. Designed for fashion/clothing brands selling in Egypt with cash-on-delivery and governorate-based shipping fees.
 
