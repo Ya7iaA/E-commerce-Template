@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Loader2, Pencil, Check, X, MessageCircle, Printer, Trash2, Search, ChevronDown } from "lucide-react";
+import { Loader2, Check, X, MessageCircle, Printer, Trash2, Search, ChevronDown, CalendarDays } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { AdminOrder } from "@/types/admin";
 import { WEBHOOKS } from "@/config/webhooks";
@@ -21,7 +21,7 @@ const handlePrintOrder = (order: AdminOrder) => {
   printWindow.document.write(`
     <html>
     <head>
-      <title>Order #${order.id.slice(0, 8)}</title>
+      <title>Order #${order.id}</title>
       <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Segoe UI', Tahoma, sans-serif; padding: 24px; color: #1a1a1a; font-size: 13px; }
@@ -42,7 +42,7 @@ const handlePrintOrder = (order: AdminOrder) => {
     </head>
     <body>
       <div class="header">
-        <h1>Order #${order.id.slice(0, 8)}</h1>
+        <h1>Order #${order.id}</h1>
         <p>${new Date(order.createdAt).toLocaleString()}</p>
       </div>
       <div class="section">
@@ -83,6 +83,8 @@ const OrdersManager = () => {
   const [saving, setSaving] = useState(false);
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const { toast } = useToast();
 
   const fetchOrders = useCallback(async () => {
@@ -111,7 +113,10 @@ const OrdersManager = () => {
       o.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
       o.customerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       o.customerPhone.includes(searchQuery);
-    return matchesStatus && matchesSearch;
+    const orderDate = new Date(o.createdAt);
+    const matchesDateFrom = !dateFrom || orderDate >= new Date(dateFrom);
+    const matchesDateTo = !dateTo || orderDate <= new Date(dateTo + "T23:59:59");
+    return matchesStatus && matchesSearch && matchesDateFrom && matchesDateTo;
   });
 
   const handleEditStatus = (order: AdminOrder) => {
@@ -138,46 +143,86 @@ const OrdersManager = () => {
     }
   };
 
+  const handleStatusChange = async (orderId: string, newStatus: string) => {
+    setSaving(true);
+    try {
+      const res = await fetch(WEBHOOKS.UPDATE_ORDER_STATUS, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: orderId, status: newStatus }),
+      });
+      if (!res.ok) throw new Error();
+      toast({ title: "Success", description: "Order status updated" });
+      fetchOrders();
+    } catch {
+      toast({ title: "Error", description: "Failed to update status", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
-    <div className="p-2 md:p-4">
-      <div className="mb-6">
-        <h2 className="text-xl md:text-2xl font-display font-black uppercase text-foreground">Orders</h2>
+    <div className="p-4 md:p-6 lg:p-8">
+      <div className="mb-6 md:mb-8">
+        <h1 className="text-2xl font-display font-black uppercase text-foreground">Orders</h1>
         <p className="text-sm text-muted-foreground">{orders.length} total orders</p>
       </div>
 
       {/* Search & Filter */}
-      <div className="flex flex-col sm:flex-row gap-3 mb-6">
-        <div className="relative flex-1 min-w-0">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-6 md:mb-8">
+        <div className="relative w-full sm:w-auto sm:min-w-[260px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <input
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search by ID, name or phone..."
+            placeholder="Search by ID or name..."
             className="w-full bg-card border border-border rounded-md pl-9 pr-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:ring-1 focus:ring-primary outline-none"
           />
         </div>
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <CalendarDays className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="bg-card border border-border rounded-md pl-8 pr-2 py-2.5 text-xs text-foreground focus:ring-1 focus:ring-primary outline-none"
+              title="From date"
+            />
+          </div>
+          <span className="text-xs text-muted-foreground">to</span>
+          <div className="relative">
+            <CalendarDays className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="bg-card border border-border rounded-md pl-8 pr-2 py-2.5 text-xs text-foreground focus:ring-1 focus:ring-primary outline-none"
+              title="To date"
+            />
+          </div>
+          {(dateFrom || dateTo) && (
+            <button
+              onClick={() => { setDateFrom(""); setDateTo(""); }}
+              className="p-1.5 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground text-xs"
+              title="Clear dates"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
         <div className="flex gap-2 flex-wrap">
-          <button
-            onClick={() => setFilterStatus("all")}
-            className={`px-3 py-2 text-xs font-medium rounded-md border transition-colors ${
-              filterStatus === "all"
-                ? "bg-primary text-primary-foreground border-primary"
-                : "border-border text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            All
-          </button>
-          {STATUS_OPTIONS.map((s) => (
+          {["all", ...STATUS_OPTIONS].map((s) => (
             <button
               key={s}
               onClick={() => setFilterStatus(s)}
-              className={`px-3 py-2 text-xs font-medium rounded-md border transition-colors capitalize ${
+              className={`px-3.5 py-2 text-xs font-medium rounded-md border transition-colors capitalize ${
                 filterStatus === s
                   ? "bg-primary text-primary-foreground border-primary"
                   : "border-border text-muted-foreground hover:text-foreground"
               }`}
             >
-              {s}
+              {s === "all" ? "All" : s}
             </button>
           ))}
         </div>
@@ -190,7 +235,7 @@ const OrdersManager = () => {
       ) : filteredOrders.length === 0 ? (
         <p className="text-center text-muted-foreground py-16">No orders found.</p>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className="space-y-4">
           <AnimatePresence>
             {filteredOrders.map((order, i) => (
               <motion.div
@@ -199,59 +244,25 @@ const OrdersManager = () => {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
                 transition={{ delay: i * 0.03 }}
-                className="bg-card border border-border rounded-xl p-4 space-y-3"
+                className="bg-card border border-border rounded-xl p-4 md:p-6"
               >
-                {/* Header */}
-                <div className="flex items-center justify-between">
-                  <span className="font-mono text-xs text-muted-foreground">#{order.id.slice(0, 8)}</span>
-                  <span className="text-xs text-muted-foreground">
-                    {new Date(order.createdAt).toLocaleDateString()}
-                  </span>
-                </div>
-
-                {/* Customer info */}
-                <div className="space-y-1.5 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Customer</span>
-                    <span className="font-medium text-foreground">{order.customerName}</span>
+                {/* Top row: ID + status badge + actions */}
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
+                  <div className="flex items-center gap-2.5">
+                    <span className="font-display font-bold text-sm text-foreground">
+                      {order.id}
+                    </span>
+                    <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold capitalize ${STATUS_COLORS[order.status] || ""}`}>
+                      {order.status}
+                    </span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Phone</span>
-                    <span className="text-foreground">{order.customerPhone}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Governorate</span>
-                    <span className="text-foreground">{order.governorate}</span>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Address</span>
-                    <p className="mt-0.5 break-words text-foreground">{order.address}</p>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Items</span>
-                    <p className="mt-0.5 break-words whitespace-pre-wrap text-foreground">{order.items}</p>
-                  </div>
-                </div>
-
-                {/* Totals */}
-                <div className="flex items-center justify-between pt-2 border-t border-border text-sm">
-                  <div className="space-y-0.5">
-                    <div className="flex gap-3 text-xs text-muted-foreground">
-                      <span>Subtotal: <span className="text-foreground">{order.subtotal} EGP</span></span>
-                      <span>Shipping: <span className="text-foreground">{order.shippingFee} EGP</span></span>
-                    </div>
-                    <div className="font-semibold text-primary">Total: {order.total} EGP</div>
-                  </div>
-                </div>
-
-                {/* Status & Actions */}
-                <div className="flex items-center justify-between pt-2 border-t border-border">
-                  {editingOrderId === order.id ? (
+                  <div className="flex items-center gap-1.5">
                     <div className="relative">
                       <select
-                        value={editStatus}
-                        onChange={(e) => setEditStatus(e.target.value)}
-                        className="appearance-none bg-secondary border border-border rounded-md pl-3 pr-8 py-1.5 text-xs font-medium text-foreground outline-none focus:ring-1 focus:ring-primary"
+                        value={order.status}
+                        onChange={(e) => handleStatusChange(order.id, e.target.value)}
+                        disabled={saving}
+                        className="appearance-none bg-secondary border border-border rounded-md pl-3 pr-7 py-1.5 text-xs font-medium text-foreground outline-none focus:ring-1 focus:ring-primary cursor-pointer"
                       >
                         {STATUS_OPTIONS.map((s) => (
                           <option key={s} value={s}>{s}</option>
@@ -259,58 +270,57 @@ const OrdersManager = () => {
                       </select>
                       <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground pointer-events-none" />
                     </div>
-                  ) : (
-                    <span className={`px-2.5 py-1 rounded-full text-xs font-medium capitalize ${STATUS_COLORS[order.status] || ""}`}>
-                      {order.status}
-                    </span>
-                  )}
-
-                  <div className="flex gap-1 items-center">
-                    {editingOrderId === order.id ? (
-                      <>
-                        <button
-                          onClick={() => handleSaveStatus(order.id)}
-                          disabled={saving}
-                          className="p-1.5 rounded-md hover:bg-emerald-500/10 text-emerald-400 transition-colors"
-                          title="Save"
-                        >
-                          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-                        </button>
-                        <button
-                          onClick={() => setEditingOrderId(null)}
-                          className="p-1.5 rounded-md hover:bg-destructive/10 text-destructive transition-colors"
-                          title="Cancel"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                      </>
-                    ) : (
-                      <button
-                        onClick={() => handleEditStatus(order)}
-                        className="p-1.5 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
-                        title="Edit Status"
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </button>
-                    )}
                     <button
                       onClick={() => handlePrintOrder(order)}
                       className="p-1.5 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
                       title="Print"
                     >
-                      <Printer className="h-3.5 w-3.5" />
+                      <Printer className="h-4 w-4" />
                     </button>
                     <a
-                      href={`https://wa.me/${order.customerPhone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(
-                        `الاسم: ${order.customerName}\nالمحافظة: ${order.governorate}\nالعنوان: ${order.address}\n\nالمنتجات:\n${order.items}\n\nالاجمالي: ${order.total} EGP\n\nتم تأكيد طلبك.`
+                      href={`https://wa.me/+2${order.customerPhone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(
+                        'رقم الاوردر ' + order.id + '\n' +
+                        'الاسم: ' + order.customerName + '\n' +
+                        'الحالة: ' + order.status + '\n' +
+                        'العنوان: ' + order.governorate + ' - ' + order.address + '\n' +
+                        'المنتجات:\n' + order.items + '\n' +
+                        'المجموع: ' + order.total + ' EGP'
                       )}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="p-1.5 rounded-md hover:bg-emerald-500/10 text-emerald-400 transition-colors"
                       title="WhatsApp"
                     >
-                      <MessageCircle className="h-3.5 w-3.5" />
+                      <MessageCircle className="h-4 w-4" />
                     </a>
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground mb-4">
+                  {new Date(order.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                </p>
+
+                {/* Body: two columns on desktop, stacked on mobile */}
+                <div className="flex flex-col md:flex-row md:gap-8">
+                  {/* Left: Customer info */}
+                  <div className="space-y-1 mb-4 md:mb-0 md:min-w-[220px]">
+                    <p className="font-semibold text-sm text-foreground">{order.customerName}</p>
+                    <p className="text-sm text-muted-foreground">{order.customerPhone}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {order.governorate} — {order.address}
+                    </p>
+                  </div>
+
+                  {/* Right: Items + totals */}
+                  <div className="flex-1 space-y-2">
+                    <p className="text-sm text-foreground whitespace-pre-wrap">{order.items}</p>
+                    <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-border">
+                      <span className="text-xs text-muted-foreground">
+                        Subtotal: {order.subtotal} | Shipping: {order.shippingFee}
+                      </span>
+                      <span className="font-bold text-sm text-primary">
+                        {order.total} EGP
+                      </span>
+                    </div>
                   </div>
                 </div>
               </motion.div>

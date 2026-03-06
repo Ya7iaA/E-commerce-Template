@@ -4,21 +4,36 @@ import AdminSidebar from "@/components/admin/AdminSidebar";
 import ProductsManager from "@/components/admin/ProductsManager";
 import OrdersManager from "@/components/admin/OrdersManager";
 import AnalyticsSection from "@/components/admin/AnalyticsSection";
-
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+
+const getAdminSession = () => {
+  const raw = localStorage.getItem("admin_session") || sessionStorage.getItem("admin_session");
+  if (!raw) return null;
+  try {
+    const session = JSON.parse(raw);
+    if (session.expiresAt && Date.now() > session.expiresAt) {
+      localStorage.removeItem("admin_session");
+      sessionStorage.removeItem("admin_session");
+      return null;
+    }
+    return session;
+  } catch {
+    return null;
+  }
+};
 
 const AdminDashboard = () => {
   const [activeSection, setActiveSection] = useState("products");
   const navigate = useNavigate();
 
   useEffect(() => {
-    const token = sessionStorage.getItem("admin_token");
-    if (!token) navigate("/admin");
+    const session = getAdminSession();
+    if (!session) navigate("/admin");
   }, [navigate]);
 
   const handleLogout = () => {
-    sessionStorage.removeItem("admin_token");
-    sessionStorage.removeItem("admin_user");
+    localStorage.removeItem("admin_session");
+    sessionStorage.removeItem("admin_session");
     navigate("/admin");
   };
 

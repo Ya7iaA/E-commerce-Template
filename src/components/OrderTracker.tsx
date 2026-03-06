@@ -13,7 +13,7 @@ const OrderTracker = () => {
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<TrackingMessage[]>([
-    { id: 0, type: 'bot', text: 'Hi! Paste your Order ID here to track your order.' },
+    { id: 0, type: 'bot', text: 'مرحبا! قم بلصق رقم الطلب هنا لتتبع طلبك.' },
   ]);
   const [loading, setLoading] = useState(false);
 
@@ -34,18 +34,18 @@ const OrderTracker = () => {
           body: JSON.stringify({ orderId: trimmed }),
         });
         const data = await res.json();
-        const status = data?.status || data?.message || 'No information found for this order.';
+        const status = data?.status || data?.message || 'لا توجد معلومات حول هذا الطلب.';
         setMessages((prev) => [...prev, { id: Date.now() + 1, type: 'bot', text: String(status) }]);
       } else {
         setMessages((prev) => [
           ...prev,
-          { id: Date.now() + 1, type: 'bot', text: 'Tracking is not configured yet. Please contact us via WhatsApp.' },
+          { id: Date.now() + 1, type: 'bot', text: 'التعقب غير مكون حاليًا. يرجى التواصل معنا عبر واتساب.' },
         ]);
       }
     } catch {
       setMessages((prev) => [
         ...prev,
-        { id: Date.now() + 1, type: 'bot', text: 'Something went wrong. Please try again later.' },
+        { id: Date.now() + 1, type: 'bot', text: 'حدث خطأ. يرجى المحاولة لاحقًا.' },
       ]);
     } finally {
       setLoading(false);

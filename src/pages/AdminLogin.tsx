@@ -6,10 +6,14 @@ import { useToast } from "@/hooks/use-toast";
 import { WEBHOOKS } from "@/config/webhooks";
 import logo from "@/assets/logo.png";
 
+// Session duration in days — change this to control how long the admin stays logged in
+const SESSION_DURATION_DAYS = 7;
+
 const AdminLogin = () => {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -29,8 +33,19 @@ const AdminLogin = () => {
       });
       if (!res.ok) throw new Error("Invalid credentials");
       const data = await res.json();
-      sessionStorage.setItem("admin_token", data.token || "authenticated");
-      sessionStorage.setItem("admin_user", username);
+
+      const sessionData = {
+        token: data.token || "authenticated",
+        user: username,
+        expiresAt: Date.now() + SESSION_DURATION_DAYS * 24 * 60 * 60 * 1000,
+      };
+
+      if (rememberMe) {
+        localStorage.setItem("admin_session", JSON.stringify(sessionData));
+      } else {
+        sessionStorage.setItem("admin_session", JSON.stringify(sessionData));
+      }
+
       toast({ title: "Welcome back, Admin!" });
       navigate("/admin/dashboard");
     } catch {
@@ -52,7 +67,7 @@ const AdminLogin = () => {
             <img src={logo} alt="Logo" className="w-full h-full object-contain" />
           </div>
           <h1 className="text-2xl font-display font-black uppercase text-foreground">Admin Panel</h1>
-          <p className="text-sm text-muted-foreground mt-1">Taci8ai Dashboard</p>
+          <p className="text-sm text-muted-foreground mt-1">Tacti8ai Dashboard</p>
         </div>
 
         <form onSubmit={handleSubmit} className="bg-card border border-border rounded-xl p-6 space-y-4">
@@ -85,6 +100,18 @@ const AdminLogin = () => {
               </button>
             </div>
           </div>
+
+          <label className="flex items-center gap-2 cursor-pointer">
+            <button
+              type="button"
+              onClick={() => setRememberMe(!rememberMe)}
+              className={`w-9 h-5 rounded-full transition-colors relative ${rememberMe ? "bg-primary" : "bg-muted-foreground/30"}`}
+            >
+              <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${rememberMe ? "left-[18px]" : "left-0.5"}`} />
+            </button>
+            <span className="text-xs text-muted-foreground">Remember me for {SESSION_DURATION_DAYS} days</span>
+          </label>
+
           <button
             type="submit"
             disabled={loading}
